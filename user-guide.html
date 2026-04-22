@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>User Guide — Connecting Itinerary Analysis Tool</title>
+<style>
+:root {
+  --accent: #2563eb;
+  --bg: #f8f9fc;
+  --surface: #ffffff;
+  --border: #e2e6ef;
+  --text: #1a1d23;
+  --muted: #6b7280;
+  --tip-bg: #eff6ff;
+  --tip-border: #bfdbfe;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 15px; line-height: 1.7;
+  background: var(--bg); color: var(--text);
+}
+.page {
+  max-width: 820px; margin: 0 auto; padding: 40px 24px 80px;
+}
+h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.subtitle { color: var(--muted); margin-bottom: 36px; font-size: 15px; }
+h2 {
+  font-size: 20px; font-weight: 700; margin: 40px 0 12px;
+  padding-bottom: 8px; border-bottom: 2px solid var(--border);
+  color: var(--accent);
+}
+h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+p { margin-bottom: 12px; }
+ul, ol { padding-left: 22px; margin-bottom: 12px; }
+li { margin-bottom: 5px; }
+code {
+  font-family: 'Courier New', monospace; font-size: 13px;
+  background: #eef1f8; padding: 1px 5px; border-radius: 3px;
+}
+.tip {
+  background: var(--tip-bg); border-left: 4px solid var(--accent);
+  border-radius: 4px; padding: 12px 16px; margin: 16px 0;
+  font-size: 14px;
+}
+.tip strong { color: var(--accent); }
+.warn {
+  background: var(--warn-bg); border-left: 4px solid #f59e0b;
+  border-radius: 4px; padding: 12px 16px; margin: 16px 0;
+  font-size: 14px;
+}
+.warn strong { color: #92400e; }
+table {
+  width: 100%; border-collapse: collapse; margin: 16px 0;
+  font-size: 14px;
+}
+th {
+  background: var(--accent); color: #fff;
+  padding: 8px 12px; text-align: left; font-weight: 600;
+}
+td { padding: 7px 12px; border-bottom: 1px solid var(--border); }
+tr:nth-child(even) td { background: #f4f6fb; }
+.field-name { font-family: 'Courier New', monospace; font-size: 12px; color: #4b5563; }
+.toc {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 20px 24px; margin-bottom: 36px;
+}
+.toc h3 { margin-top: 0; margin-bottom: 10px; }
+.toc ol { margin-bottom: 0; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.badge {
+  display: inline-block; background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 1px 7px;
+  border-radius: 10px; vertical-align: middle; margin-right: 4px;
+}
+.step {
+  display: flex; gap: 14px; margin-bottom: 14px;
+}
+.step-num {
+  flex-shrink: 0; width: 28px; height: 28px; background: var(--accent); color: #fff;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; margin-top: 2px;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>✈ Connecting Itinerary Analysis Tool</h1>
+<p class="subtitle">User Guide — written for analysts new to this data</p>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#what-is-this">What Is This Tool?</a></li>
+    <li><a href="#the-data">Understanding the Data</a></li>
+    <li><a href="#layout">Tool Layout Overview</a></li>
+    <li><a href="#filters">Filtering Your Data (the Sidebar)</a></li>
+    <li><a href="#pivot">Building a Pivot Table</a></li>
+    <li><a href="#charts">Creating Charts</a></li>
+    <li><a href="#sql">SQL Panel (Advanced)</a></li>
+    <li><a href="#export">Exporting Results</a></li>
+    <li><a href="#factor">Raw Data vs. Factor Adjustment</a></li>
+    <li><a href="#tips">Common Analyses & Tips</a></li>
+  </ol>
+</div>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="what-is-this">1. What Is This Tool?</h2>
+
+<p>This tool lets you explore how passengers travel through connecting airports — specifically, how much time they spend waiting at a hub, and whether that wait time correlates with which airline or hub they prefer. No coding, no downloading files. Everything runs in your browser.</p>
+
+<p>Think of it as a dynamic version of an Excel pivot table, but connected directly to a 20-million-row airline database. You apply filters on the left, choose what to group and measure, and click Run. Results appear in seconds.</p>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="the-data">2. Understanding the Data</h2>
+
+<h3>Source</h3>
+<p>The data comes from the <strong>U.S. Department of Transportation's DB1C database</strong> — the government's official record of domestic airline ticket sales. It covers <strong>July through December 2025</strong>. Only connecting itineraries (one-stop flights) through 19 major U.S. hub airports are included.</p>
+
+<div class="warn">
+  <strong>Important:</strong> The DOT collects a <strong>40% random sample</strong> of all tickets. The raw numbers in this tool represent approximately 40% of actual passenger volume. See <a href="#factor">Section 9</a> on the Factor Adjustment toggle to scale these up.
+</div>
+
+<h3>What counts as a "record" in this data?</h3>
+<p>Each row represents one passenger traveling one direction on one connecting itinerary. For example, a round-trip Boston → Charlotte → Miami → Charlotte → Boston would produce two separate records: one for each direction of travel.</p>
+
+<h3>Key concepts you'll encounter</h3>
+<table>
+  <tr><th>Term</th><th>What it means</th></tr>
+  <tr>
+    <td><strong>Connecting Hub</strong></td>
+    <td>The middle airport — the one you're stuck in while waiting for your connection. Examples: CLT (Charlotte), ATL (Atlanta), DFW (Dallas).</td>
+  </tr>
+  <tr>
+    <td><strong>Connection Time (Dwell Time)</strong></td>
+    <td>How many minutes the passenger had between landing and their next departure. A 90-minute connection is short but manageable. A 4-hour connection is what the data calls a "long connection."</td>
+  </tr>
+  <tr>
+    <td><strong>Marketing Carrier</strong></td>
+    <td>The airline whose name was on the ticket — the one that sold it to you. American, United, Delta, Southwest, etc.</td>
+  </tr>
+  <tr>
+    <td><strong>Revenue</strong></td>
+    <td>The total fare for the ticket, accurately allocated to this specific one-way market segment. This is in USD and is safe to add up across any group of records.</td>
+  </tr>
+  <tr>
+    <td><strong>Circuity</strong></td>
+    <td>A measure of how "out of the way" a connecting routing is. A flight from Buffalo → Charlotte → Tampa is more circuitous than Buffalo → Miami → Tampa, because Charlotte is further off the straight-line path. See <a href="#filters">Section 4</a> for how to filter by this.</td>
+  </tr>
+  <tr>
+    <td><strong>Nonstop Frequency Flag</strong></td>
+    <td>Whether there are a lot of nonstop flights on the same route. Routes with high nonstop frequency (≥ 91 departures/month) are excluded from this dataset entirely — if passengers have lots of nonstop options, they're less likely to be choosing connecting itineraries out of preference.</td>
+  </tr>
+</table>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="layout">3. Tool Layout Overview</h2>
+
+<p>The tool has three main areas:</p>
+
+<ul>
+  <li><strong>Top bar</strong> — title, Raw Data / Factor Adjustment toggle, dark mode toggle</li>
+  <li><strong>Left sidebar</strong> — all your filters. Changes here don't run queries automatically; you apply them and then click Run.</li>
+  <li><strong>Main area</strong> — three tabs: <strong>Pivot Table</strong>, <strong>Chart</strong>, and <strong>SQL</strong>.</li>
+</ul>
+
+<p>When a query is running, you'll see a small animated plane flying across a progress bar at the top of the page. This means the tool is working — just wait a moment. Most queries on filtered data complete in 2–10 seconds.</p>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="filters">4. Filtering Your Data (the Sidebar)</h2>
+
+<p>Filters narrow down which records are included in your analysis. You can stack as many filters as you want. All filters combine with AND logic — a record must satisfy every active filter to be included.</p>
+
+<div class="tip">
+  <strong>Tip:</strong> Start broad (all filters at default) to get a baseline, then narrow down to test specific hypotheses.
+</div>
+
+<h3>Date Range</h3>
+<p>Check or uncheck months to include in the analysis. All six months (July–December 2025) are selected by default. If you're looking at seasonal patterns, compare summer (July–August) vs. fall (October–December).</p>
+
+<h3>Airports (Origin & Destination)</h3>
+<p>Search for specific origin or destination airports. The search is smart:</p>
+<ul>
+  <li>Type <strong>1–3 characters</strong> → matches on IATA airport code (e.g., "BOS" for Boston Logan, "CLT" for Charlotte)</li>
+  <li>Type <strong>4+ characters</strong> → switches to city name search (e.g., "char" finds Charlotte, "phoe" finds Phoenix)</li>
+</ul>
+<p>You can select multiple airports — they'll appear as tags below the search box. To remove one, click the × on its tag. Only airports that actually appear in the dataset are searchable.</p>
+
+<h3>Connecting Hub</h3>
+<p>Filter to specific connecting airports. Same smart search as origin/destination. The 19 hubs in this dataset are spread across four regions:</p>
+<table>
+  <tr><th>Region</th><th>Airports</th></tr>
+  <tr><td>Midwest</td><td>DTW, MDW, MSP, ORD, STL</td></tr>
+  <tr><td>Mountain West</td><td>DEN, LAS, PHX, SLC</td></tr>
+  <tr><td>Southeast</td><td>ATL, BNA, BWI, CLT, DCA, IAD</td></tr>
+  <tr><td>Texas</td><td>DAL, DFW, HOU, IAH</td></tr>
+</table>
+<p>You can also filter by <strong>Hub Region</strong> to include/exclude entire geographic groups.</p>
+
+<h3>Marketing Carrier</h3>
+<p>Filter to specific airlines. Uses IATA codes: AA (American), DL (Delta), UA (United), WN (Southwest), B6 (JetBlue), AS (Alaska), etc.</p>
+
+<h3>Revenue Category</h3>
+<ul>
+  <li><strong>CAT1</strong> — tickets with a reported fare greater than $0. Use this for any revenue or yield analysis.</li>
+  <li><strong>CAT2</strong> — tickets where the fare was zero or not reported (e.g., frequent flyer redemptions, some corporate arrangements). Keeping both is fine for passenger counts; uncheck CAT2 when analyzing fares.</li>
+</ul>
+
+<h3>Dwell Time (minimum and maximum)</h3>
+<p>Set a minimum and/or maximum connection time in minutes to narrow the range of connections included. Use the minimum to remove implausibly short connections (under 30 minutes may indicate a data anomaly). Use the maximum to focus on a specific window — for example, setting max to 180 excludes anyone with a connection over 3 hours, letting you isolate the "normal connection" population.</p>
+
+<h3>Circuity Filters</h3>
+<p>Circuity measures how "out of the way" a connecting routing is compared to flying nonstop. There are two types of circuity filters:</p>
+
+<p><strong>Absolute circuity</strong> — sets a hard cap on how circuitous any routing can be, regardless of the route:</p>
+<ul>
+  <li><em>Max excess miles</em>: removes any routing where the connecting path adds more than X miles compared to a nonstop. Setting this to 300 would exclude a routing that adds 400 miles of detour.</li>
+  <li><em>Max circuity ratio</em>: removes routings where total miles ÷ nonstop miles exceeds this threshold. A ratio of 1.0 is perfectly direct; 1.5 means 50% more miles than a nonstop.</li>
+</ul>
+
+<p><strong>Relative circuity</strong> — compares each routing to the <em>least circuitous option</em> for that specific origin-destination pair:</p>
+<ul>
+  <li><em>Max gap — miles</em>: if a routing adds more than X excess miles compared to the best-available routing for that O&D, it's excluded. This removes the "most out of the way" routings while keeping the rest.</li>
+  <li><em>Max gap — ratio</em>: same concept but using the ratio instead of absolute miles.</li>
+</ul>
+
+<div class="tip">
+  <strong>Example:</strong> For Boston → Tampa, suppose Charlotte (CLT) adds 50 excess miles and Minneapolis (MSP) adds 450 excess miles. Setting "Max gap — miles" to 300 would keep CLT but exclude MSP for that O&D.
+</div>
+
+<h3>Nonstop Frequency</h3>
+<p>Filter by how often nonstop flights operate on the origin-destination route:</p>
+<ul>
+  <li><strong>LOW</strong> — fewer than 13 nonstop departures per month (very sparse or no nonstop service)</li>
+  <li><strong>MED</strong> — 13–90 departures per month (some nonstop service)</li>
+</ul>
+<p>HIGH-frequency routes (90+ departures/month) are excluded from the entire dataset. Keeping both LOW and MED gives you the full picture.</p>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="pivot">5. Building a Pivot Table</h2>
+
+<p>The Pivot Table tab works like an Excel pivot table. You choose what to group your data by, what metrics to show, and click Run.</p>
+
+<h3>Step by step</h3>
+
+<div class="step"><div class="step-num">1</div><div>
+  <strong>Set your filters</strong> in the sidebar (or leave them at default for all data).
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+  <strong>Choose Group By 1</strong> — the main dimension to slice the data. Common choices:
+  <ul>
+    <li><em>Connecting Hub</em> — compare passenger volumes by hub airport</li>
+    <li><em>Marketing Carrier</em> — compare airlines</li>
+    <li><em>Connection Time (min)</em> — see how passengers distribute across dwell times</li>
+    <li><em>Route (Directional)</em> — see which specific routes are most popular</li>
+  </ul>
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+  <strong>Choose Group By 2, 3, and 4</strong> (all optional) — add up to three additional dimensions for a more granular breakdown. For example: Hub → Carrier → Month gives you a three-level breakdown of how each airline's connecting volume at each hub changed over time. More dimensions mean more rows in the result, so apply filters first to keep the table manageable.
+</div></div>
+
+<div class="step"><div class="step-num">4</div><div>
+  <strong>Choose Metrics</strong> — which numbers to show in the table:
+  <ul>
+    <li><em>Passengers</em> — total passenger count, formatted as a whole number with commas (scaled by Factor Adjustment if enabled)</li>
+    <li><em>Revenue</em> — total fare revenue in USD for the selected records</li>
+    <li><em>Avg OD Fare</em> — average fare per passenger (Revenue ÷ Passengers) for the origin-destination market segment</li>
+    <li><em>Show as %</em> — converts Passengers and Revenue to percentage of the filtered total</li>
+  </ul>
+  Use the <strong>Per Period / Per Day</strong> toggle to switch Passengers and Revenue between the total for the selected months and a daily average (divided by the number of calendar days in those months). Avg OD Fare is already a per-passenger ratio and is unaffected by this toggle.
+</div></div>
+
+<div class="step"><div class="step-num">5</div><div>
+  <strong>Dwell Time Bucketing</strong> — if you're grouping by Connection Time, enable bucketing to group the raw minute values into ranges. A bucket size of 30 would create groups like "0–29 minutes," "30–59 minutes," "60–89 minutes," etc. This makes the table much easier to read than listing every individual minute value.
+</div></div>
+
+<div class="step"><div class="step-num">6</div><div>
+  Click <strong>▶ Run Query</strong>. Results appear below. The TOTAL row at the bottom always shows the grand total for your filtered dataset.
+</div></div>
+
+<h3>Sorting the table</h3>
+<p>Every column header has a small ↕ sort button. Click it once to sort by that column (numbers default to highest first; text defaults to A–Z). Click again to reverse. The TOTAL row stays pinned at the bottom regardless of sort order.</p>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="charts">6. Creating Charts</h2>
+
+<p>Switch to the <strong>Chart tab</strong> to visualize your data. Filters from the sidebar still apply.</p>
+
+<h3>Controls</h3>
+<table>
+  <tr><th>Control</th><th>What it does</th></tr>
+  <tr><td><strong>Chart Type</strong></td><td>Bar, Line, Pie, or Scatter. Bar and line work best for comparing categories. Pie works for share analysis. Scatter is useful for plotting two numeric fields against each other — it automatically adds a linear trendline and displays the regression formula and R² value in the top-right corner of the chart.</td></tr>
+  <tr><td><strong>X Axis / Category</strong></td><td>What to group by on the horizontal axis. Same field list as the pivot table.</td></tr>
+  <tr><td><strong>Y Axis / Value</strong></td><td>What to measure on the vertical axis: Passengers, Revenue, Avg OD Fare, or averages of dwell time or circuity metrics. The <strong>Per Period / Per Day</strong> toggle (in the Pivot Table metrics row) also applies here — switching it automatically refreshes the chart Y-axis.</td></tr>
+  <tr><td><strong>Dwell Time Bucketing</strong></td><td>When X Axis is set to Connection Time, enable bucketing to group raw minutes into defined ranges. Same concept as in the pivot table.</td></tr>
+  <tr><td><strong>X Axis Sort</strong></td><td>Controls the order of bars/points: by value (highest or lowest first), or by X label alphabetically / numerically.</td></tr>
+  <tr><td><strong>Limit rows</strong></td><td>Cap how many bars/points appear. "Top 20" keeps only the 20 highest-value results.</td></tr>
+</table>
+
+<div class="tip">
+  <strong>Reading a scatter trendline:</strong> The formula <code>y = mx + b</code> describes the best-fit line through the data points. R² (R-squared) tells you how well the line fits: 1.0 is a perfect fit, 0.0 means no linear relationship. An R² of 0.65, for example, means the X variable explains about 65% of the variation in the Y variable.
+</div>
+
+<h3>Color palette</h3>
+<p>The palette selector (in the Chart tab) changes the colors used across all charts. Six options are available, including a colorblind-friendly palette. Your selection is saved and will be remembered the next time you open the tool.</p>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="sql">7. SQL Panel (Advanced)</h2>
+
+<p>The SQL tab lets you write your own database queries in SQL — the standard language for querying structured data. You don't need this for most analyses, but it's available if you want to do something the pivot table can't.</p>
+
+<p>The table name is always <code>data</code>. A few example queries to get started:</p>
+
+<p><strong>Passengers by hub and carrier, sorted by passengers:</strong></p>
+<pre style="background:#f4f6fb;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;margin-bottom:12px"><code>SELECT connect_apt, mkt_carrier,
+       SUM(num_pax) AS passengers,
+       SUM(allocated_amt) AS total_fare
+FROM data
+WHERE sch_fl_mo IN (7, 8, 9)
+GROUP BY connect_apt, mkt_carrier
+ORDER BY passengers DESC
+LIMIT 50</code></pre>
+
+<p><strong>Average dwell time by hub:</strong></p>
+<pre style="background:#f4f6fb;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;margin-bottom:12px"><code>SELECT connect_apt,
+       AVG(dwell_time) AS avg_dwell_minutes,
+       COUNT(*) AS record_count
+FROM data
+GROUP BY connect_apt
+ORDER BY avg_dwell_minutes</code></pre>
+
+<div class="tip">
+  <strong>Tip:</strong> SQL queries in this panel ignore the sidebar filters — write your WHERE clause manually.
+</div>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="export">8. Exporting Results</h2>
+
+<p>Any table you build — pivot table or SQL results — can be exported with one click:</p>
+<ul>
+  <li><strong>Export CSV</strong> — opens a download of a comma-separated file. Opens in Excel, Google Sheets, or any spreadsheet app.</li>
+  <li><strong>Export XLSX</strong> — downloads a native Excel workbook. Formatting will be preserved better than CSV.</li>
+</ul>
+<p>Export buttons are available in both the Pivot Table and SQL panels. The exported file contains exactly what's shown in the table, including any active sort order. Column headers in the exported file match the display names shown in the UI (for example, <em>Avg_OD_Fare</em>, <em>Origin_Airport</em>). Pivot table exports reflect the current Per Period / Per Day setting.</p>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="factor">9. Raw Data vs. Factor Adjustment</h2>
+
+<p>The DOT's DB1C data is a <strong>10% random sample</strong> of all domestic airline tickets — not every ticket sold. Because this tool's underlying dataset only retained connecting itineraries through specific hubs after additional filtering, the sample rate for records in this tool is effectively about 10%.</p>
+
+<p>The <strong>Factor Adjustment</strong> toggle (top right of the tool) applies a <strong>2.5× multiplier</strong> to all passenger and revenue totals to scale up to an estimated full-market figure. This is a rough approximation — the actual sampling rate varies — but it's useful for communicating "real-world" scale in presentations.</p>
+
+<table>
+  <tr><th>Mode</th><th>Passengers shown</th><th>Revenue shown</th><th>Avg OD Fare</th></tr>
+  <tr><td><strong>Raw Data</strong></td><td>Sample count (~40% of actual)</td><td>Sample revenue</td><td>Unchanged</td></tr>
+  <tr><td><strong>Factor Adjustment (×2.5)</strong></td><td>Estimated market passengers</td><td>Estimated market revenue</td><td>Unchanged (ratio)</td></tr>
+</table>
+
+<div class="warn">
+  <strong>Note:</strong> Avg OD Fare (Revenue ÷ Passengers) is not affected by the multiplier — multiplying both the numerator and denominator by the same factor cancels out, leaving the ratio unchanged. Note that this metric is <em>not</em> the same as airline yield, which is defined as revenue per revenue passenger mile (Rev/RPM).
+</div>
+
+<!-- ────────────────────────────────────────── -->
+<h2 id="tips">10. Common Analyses & Tips</h2>
+
+<h3>Which hub has the most connecting passengers?</h3>
+<p>Pivot Table → Primary Group By: <em>Connecting Hub</em> → Metric: <em>Passengers</em> → Run. Sort by Passengers descending.</p>
+
+<h3>How does dwell time distribute across hubs?</h3>
+<p>Pivot Table → Primary Group By: <em>Connecting Hub</em> → Secondary: <em>Connection Time (min)</em> → Enable dwell bucketing (e.g., 30-min intervals) → Run.</p>
+
+<h3>Do passengers at certain hubs pay more per ticket?</h3>
+<p>Pivot Table → Group By: <em>Connecting Hub</em> → enable <em>Avg OD Fare</em> → Run. Sort by Avg OD Fare descending.</p>
+
+<h3>Which routes are most circuitous?</h3>
+<p>Pivot Table → Group By: <em>Route (Directional)</em> → Run. Then open the SQL tab and query <code>SELECT od_pair, AVG(circuity_ratio) FROM data GROUP BY od_pair ORDER BY 2 DESC LIMIT 20</code>.</p>
+
+<h3>Comparing two hubs directly</h3>
+<p>In the sidebar, select both hubs in the Connecting Hub filter. Then run any pivot. Only records through those two hubs will be included.</p>
+
+<h3>Performance tips</h3>
+<ul>
+  <li>Queries on the full unfiltered dataset take longer. Applying filters first (especially limiting to specific hubs or months) dramatically speeds things up.</li>
+  <li>The first query after opening the page may take a few extra seconds while the data connection initializes. Subsequent queries are faster.</li>
+  <li>If a query takes more than 30 seconds, try adding more filters to reduce the data volume.</li>
+</ul>
+
+<h3>Dark mode & preferences</h3>
+<p>The dark mode toggle (top right) inverts the color scheme. Charts, color palettes, and the Factor Adjustment setting are all remembered between sessions — close the tab and reopen it, and your preferences will still be there.</p>
+
+<hr style="margin:40px 0;border-color:var(--border)" />
+<p style="color:var(--muted);font-size:13px;text-align:center">
+  Connecting Itinerary Analysis Tool · EMBA Group Project · Data: DOT DB1C Market, July–December 2025
+</p>
+
+</div>
+</body>
+</html>

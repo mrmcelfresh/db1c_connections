@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Connecting Itinerary Analysis Tool</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+/* ── CSS Variables / Theming ─────────────────────────────────────── */
+:root {
+  --bg:         #f5f6fa;
+  --surface:    #ffffff;
+  --border:     #dde1ea;
+  --text:       #1a1d23;
+  --text-muted: #6b7280;
+  --accent:     #2563eb;
+  --accent-h:   #1d4ed8;
+  --danger:     #dc2626;
+  --tag-bg:     #e8edf8;
+  --tag-text:   #2563eb;
+  --sidebar-w:  290px;
+  --radius:     6px;
+  --shadow:     0 1px 4px rgba(0,0,0,.08);
+}
+[data-theme="dark"] {
+  --bg:         #0f1117;
+  --surface:    #1a1d27;
+  --border:     #2d3144;
+  --text:       #e8eaf0;
+  --text-muted: #8b92a8;
+  --accent:     #4f8ef7;
+  --accent-h:   #3b82f6;
+  --tag-bg:     #1e2640;
+  --tag-text:   #7eb3ff;
+  --shadow:     0 1px 4px rgba(0,0,0,.3);
+}
+
+/* ── Reset & Base ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px;
+       background: var(--bg); color: var(--text); line-height: 1.5; }
+button { cursor: pointer; font-size: 13px; }
+input, select, textarea { font-size: 13px; }
+a { color: var(--accent); }
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+#topbar {
+  display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; box-shadow: var(--shadow);
+}
+#topbar h1 { font-size: 15px; font-weight: 600; flex: 1; }
+#topbar .controls { display: flex; align-items: center; gap: 10px; }
+
+#body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border); overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.filter-group { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.filter-group summary {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px; font-weight: 600; cursor: pointer;
+  background: var(--bg); font-size: 12px; user-select: none;
+  list-style: none;
+}
+.filter-group summary::-webkit-details-marker { display: none; }
+.filter-group summary::after { content: '▾'; font-size: 11px; color: var(--text-muted); }
+.filter-group[open] summary::after { content: '▴'; }
+.filter-group-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+
+.filter-label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-bottom: 2px; }
+.filter-label span { margin-left: 4px; }
+
+/* Typeahead */
+.typeahead-wrap { position: relative; }
+.typeahead-input {
+  width: 100%; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg); color: var(--text);
+}
+.typeahead-input:focus { outline: none; border-color: var(--accent); }
+.typeahead-dropdown {
+  position: fixed; z-index: 9999;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); max-height: 200px; overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15); display: none;
+}
+.typeahead-dropdown.open { display: block; }
+.typeahead-item {
+  padding: 5px 9px; cursor: pointer; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.typeahead-item:hover { background: var(--tag-bg); }
+.typeahead-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
+  background: var(--tag-bg); color: var(--tag-text); border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+}
+.tag button { background: none; border: none; color: var(--tag-text); padding: 0;
+              font-size: 13px; line-height: 1; }
+
+/* Checkbox groups */
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; }
+.check-item { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.check-item input[type=checkbox] { accent-color: var(--accent); }
+
+/* Number inputs */
+.num-row { display: flex; align-items: center; gap: 6px; }
+.num-row label { flex: 1; font-size: 12px; color: var(--text-muted); }
+.num-input {
+  width: 80px; padding: 4px 7px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg); color: var(--text);
+  text-align: right;
+}
+.num-input:focus { outline: none; border-color: var(--accent); }
+
+/* ── Main content ────────────────────────────────────────────────── */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Tab bar */
+#tabs {
+  display: flex; gap: 2px; padding: 8px 16px 0;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--surface);
+}
+.tab {
+  padding: 7px 16px; border-radius: var(--radius) var(--radius) 0 0;
+  border: 1px solid transparent; cursor: pointer; font-weight: 500;
+  background: none; color: var(--text-muted);
+  border-bottom: none; position: relative; bottom: -1px;
+}
+.tab.active {
+  background: var(--surface); border-color: var(--border);
+  color: var(--accent); border-bottom-color: var(--surface);
+}
+
+/* Tab panels */
+#tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; padding: 14px 16px; gap: 10px; }
+.tab-panel.active { display: flex; }
+
+/* Pivot controls */
+.pivot-controls {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  padding: 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); flex-shrink: 0;
+}
+.pivot-controls .full-width { grid-column: 1 / -1; }
+
+.ctrl-row { display: flex; flex-direction: column; gap: 4px; }
+.ctrl-row label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.ctrl-select {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg); color: var(--text); width: 100%;
+}
+.ctrl-select:focus { outline: none; border-color: var(--accent); }
+
+.metrics-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.metric-check { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.metric-check input { accent-color: var(--accent); }
+
+/* Action row */
+.action-row { display: flex; gap: 8px; align-items: center; }
+.btn-primary {
+  padding: 6px 16px; background: var(--accent); color: #fff;
+  border: none; border-radius: var(--radius); font-weight: 600;
+}
+.btn-primary:hover { background: var(--accent-h); }
+.btn-secondary {
+  padding: 6px 12px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger {
+  padding: 6px 12px; background: var(--surface); color: var(--danger);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+
+/* Results area */
+#pivot-results { flex: 1; overflow: auto; }
+#pivot-status { color: var(--text-muted); font-size: 12px; padding: 4px 0; }
+
+/* Table */
+.data-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.data-table th {
+  position: sticky; top: 0; background: var(--surface);
+  padding: 4px 10px; text-align: right; border-bottom: 2px solid var(--border);
+  font-weight: 600; white-space: nowrap; z-index: 1;
+}
+.data-table th:first-child, .data-table th:nth-child(2) { text-align: left; }
+.sort-btn {
+  background: none; border: none; padding: 0 0 0 5px; cursor: pointer;
+  color: var(--text-muted); font-size: 11px; vertical-align: middle;
+  line-height: 1;
+}
+.sort-btn.active { color: var(--accent); font-weight: 700; }
+.data-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); text-align: right; }
+.data-table td:first-child, .data-table td:nth-child(2) { text-align: left; }
+.data-table tr:hover td { background: var(--tag-bg); }
+.data-table .total-row td { font-weight: 700; border-top: 2px solid var(--border); }
+
+/* Chart panel */
+.chart-controls {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  padding: 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); flex-shrink: 0;
+}
+.chart-controls .ctrl-row { min-width: 130px; }
+#chart-container { flex: 1; min-height: 300px; }
+
+/* SQL panel */
+.sql-controls { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+#sql-editor {
+  width: 100%; height: 100px; padding: 8px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg); color: var(--text);
+  font-family: 'Courier New', monospace; font-size: 12px; resize: vertical;
+}
+#sql-results { flex: 1; overflow: auto; }
+#sql-status { color: var(--text-muted); font-size: 12px; }
+
+/* Toggle switch */
+.toggle-wrap { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; }
+.toggle {
+  position: relative; display: inline-block; width: 34px; height: 18px;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--border); border-radius: 18px; transition: .2s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; height: 12px; width: 12px;
+  left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s;
+}
+.toggle input:checked + .toggle-slider { background: var(--accent); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+/* Status / loading */
+#init-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 1000; color: #fff; gap: 14px;
+}
+#init-overlay.hidden { display: none; }
+.spinner {
+  width: 36px; height: 36px; border: 4px solid rgba(255,255,255,.3);
+  border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#init-msg { font-size: 15px; font-weight: 500; }
+
+/* Tooltip */
+[data-tip] { position: relative; cursor: help; border-bottom: 1px dotted var(--text-muted); }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: #1a1d27; color: #e8eaf0; padding: 5px 9px; border-radius: 5px;
+  font-size: 11px; white-space: nowrap; max-width: 280px; white-space: normal;
+  z-index: 200; pointer-events: none; line-height: 1.4;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+
+/* Palette preview dots */
+.palette-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
+
+/* Error */
+.error-msg { color: var(--danger); font-size: 12px; padding: 6px 0; }
+
+/* ── Query loading bar ───────────────────────────────────────────── */
+#query-bar {
+  height: 4px; flex-shrink: 0;
+  background: transparent; position: relative; overflow: visible;
+}
+#query-bar.running { background: var(--border); }
+#query-bar.running::before {
+  content: '';
+  position: absolute; top: 0; height: 100%;
+  background: var(--accent); border-radius: 2px;
+  animation: qbar-sweep 1.8s ease-in-out infinite;
+}
+#query-bar.running .q-plane {
+  display: block;
+  position: absolute; top: -11px;
+  font-size: 20px; line-height: 1;
+  animation: qplane-sweep 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px var(--accent));
+}
+.q-plane { display: none; }
+@keyframes qbar-sweep {
+  0%   { left: -35%; width: 35%; }
+  50%  { left: 15%;  width: 60%; }
+  100% { left: 110%; width: 35%; }
+}
+@keyframes qplane-sweep {
+  0%   { left: -40px; }
+  100% { left: calc(100% + 15px); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  #body { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- Init overlay -->
+<div id="init-overlay">
+  <div class="spinner"></div>
+  <div id="init-msg">Initializing DuckDB…</div>
+</div>
+
+<div id="app">
+  <!-- Top bar -->
+  <div id="topbar">
+
+    <h1>Connecting Itinerary Analysis</h1>
+    <div class="controls">
+      <a href="user-guide.html" target="_blank" style="font-size:12px;color:var(--accent);text-decoration:none;margin-right:4px">📖 User Guide</a>
+      <label class="toggle-wrap">
+        <span id="actuals-label" style="font-weight:600">Raw Data</span>
+        <label class="toggle">
+          <input type="checkbox" id="actuals-toggle" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="color:var(--text-muted);font-weight:400;font-size:11px" id="actuals-sub">40% DOT sample</span>
+      </label>
+      <label class="toggle-wrap" style="margin-left:8px">
+        <span>Dark</span>
+        <label class="toggle">
+          <input type="checkbox" id="theme-toggle" />
+          <span class="toggle-slider"></span>
+        </label>
+      </label>
+    </div>
+  </div>
+
+  <!-- Aviation-themed query loading bar -->
+  <div id="query-bar"><span class="q-plane">✈</span></div>
+
+  <div id="body">
+    <!-- Sidebar filters -->
+    <div id="sidebar">
+
+      <details class="filter-group" open>
+        <summary>Date Range</summary>
+        <div class="filter-group-body">
+          <div class="filter-label">Flight Month (2025)</div>
+          <div class="check-grid" id="month-checks">
+            <label class="check-item"><input type="checkbox" class="month-cb" value="7" checked> Jul</label>
+            <label class="check-item"><input type="checkbox" class="month-cb" value="8" checked> Aug</label>
+            <label class="check-item"><input type="checkbox" class="month-cb" value="9" checked> Sep</label>
+            <label class="check-item"><input type="checkbox" class="month-cb" value="10" checked> Oct</label>
+            <label class="check-item"><input type="checkbox" class="month-cb" value="11" checked> Nov</label>
+            <label class="check-item"><input type="checkbox" class="month-cb" value="12" checked> Dec</label>
+          </div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Airports</summary>
+        <div class="filter-group-body">
+          <div class="filter-label">Origin Airport</div>
+          <div class="typeahead-wrap">
+            <input class="typeahead-input" id="origin-input" placeholder="Search code or city…" autocomplete="off" />
+            <div class="typeahead-dropdown" id="origin-dropdown"></div>
+          </div>
+          <div class="typeahead-tags" id="origin-tags"></div>
+          <div class="filter-label" style="margin-top:6px">Destination Airport</div>
+          <div class="typeahead-wrap">
+            <input class="typeahead-input" id="dest-input" placeholder="Search code or city…" autocomplete="off" />
+            <div class="typeahead-dropdown" id="dest-dropdown"></div>
+          </div>
+          <div class="typeahead-tags" id="dest-tags"></div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Connecting Hub</summary>
+        <div class="filter-group-body">
+          <div class="filter-label">Hub Region</div>
+          <div class="check-grid" id="region-checks">
+            <label class="check-item"><input type="checkbox" class="region-cb" value="Midwest" checked> Midwest</label>
+            <label class="check-item"><input type="checkbox" class="region-cb" value="Mountain West" checked> Mtn West</label>
+            <label class="check-item"><input type="checkbox" class="region-cb" value="Southeast" checked> Southeast</label>
+            <label class="check-item"><input type="checkbox" class="region-cb" value="Texas" checked> Texas</label>
+          </div>
+          <div class="filter-label" style="margin-top:6px">Specific Hub Airport</div>
+          <div class="typeahead-wrap">
+            <input class="typeahead-input" id="hub-input" placeholder="Search hub…" autocomplete="off" />
+            <div class="typeahead-dropdown" id="hub-dropdown"></div>
+          </div>
+          <div class="typeahead-tags" id="hub-tags"></div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Carrier</summary>
+        <div class="filter-group-body">
+          <div class="filter-label">Marketing Carrier</div>
+          <div class="typeahead-wrap">
+            <input class="typeahead-input" id="carrier-input" placeholder="Search carrier…" autocomplete="off" />
+            <div class="typeahead-dropdown" id="carrier-dropdown"></div>
+          </div>
+          <div class="typeahead-tags" id="carrier-tags"></div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Revenue</summary>
+        <div class="filter-group-body">
+          <div class="filter-label">Revenue Category</div>
+          <div class="check-grid">
+            <label class="check-item"><input type="checkbox" class="revcat-cb" value="CAT1" checked> <span data-tip="Priced tickets (fare > $0)">CAT1</span></label>
+            <label class="check-item"><input type="checkbox" class="revcat-cb" value="CAT2" checked> <span data-tip="Zero or unreported fare">CAT2</span></label>
+          </div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Dwell Time</summary>
+        <div class="filter-group-body">
+          <div class="num-row">
+            <label>Min dwell (min)</label>
+            <input class="num-input" type="number" id="min-dwell" min="0" max="1440" placeholder="—" />
+          </div>
+          <div class="num-row">
+            <label>Max dwell (min)</label>
+            <input class="num-input" type="number" id="max-dwell" min="0" max="1440" placeholder="—" />
+          </div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Circuity Filters</summary>
+        <div class="filter-group-body">
+          <div class="filter-label"><span data-tip="Filters any routing whose excess miles exceed this value">Absolute circuity</span></div>
+          <div class="num-row">
+            <label>Max excess miles</label>
+            <input class="num-input" type="number" id="max-circ-abs" min="0" placeholder="—" />
+          </div>
+          <div class="num-row">
+            <label>Max circuity ratio</label>
+            <input class="num-input" type="number" id="max-circ-ratio" min="1" step="0.05" placeholder="—" />
+          </div>
+          <div class="filter-label" style="margin-top:6px"><span data-tip="Filters routings that exceed the O&D's minimum circuity by more than this gap">Relative to O&D minimum</span></div>
+          <div class="num-row">
+            <label>Max gap — miles</label>
+            <input class="num-input" type="number" id="max-rel-gap-abs" min="0" placeholder="—" />
+          </div>
+          <div class="num-row">
+            <label>Max gap — ratio</label>
+            <input class="num-input" type="number" id="max-rel-gap-ratio" min="0" step="0.05" placeholder="—" />
+          </div>
+        </div>
+      </details>
+
+      <details class="filter-group">
+        <summary>Frequency</summary>
+        <div class="filter-group-body">
+          <div class="filter-label">Nonstop Frequency Flag</div>
+          <div class="check-grid">
+            <label class="check-item"><input type="checkbox" class="freq-cb" value="LOW" checked> <span data-tip="< 13 departures/month">LOW</span></label>
+            <label class="check-item"><input type="checkbox" class="freq-cb" value="MED" checked> <span data-tip="13–90 departures/month">MED</span></label>
+          </div>
+        </div>
+      </details>
+
+    </div><!-- /sidebar -->
+
+    <!-- Main -->
+    <div id="main">
+      <div id="tabs">
+        <button class="tab active" data-tab="pivot">Pivot Table</button>
+        <button class="tab" data-tab="chart">Chart</button>
+        <button class="tab" data-tab="sql">SQL</button>
+      </div>
+
+      <div id="tab-content">
+
+        <!-- ── Pivot Table panel ── -->
+        <div class="tab-panel active" id="panel-pivot">
+          <div class="pivot-controls">
+            <div class="ctrl-row">
+              <label>Group By 1</label>
+              <select class="ctrl-select" id="pivot-row1"></select>
+            </div>
+            <div class="ctrl-row">
+              <label>Group By 2 <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+              <select class="ctrl-select" id="pivot-row2"><option value="">(none)</option></select>
+            </div>
+            <div class="ctrl-row">
+              <label>Group By 3 <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+              <select class="ctrl-select" id="pivot-row3"><option value="">(none)</option></select>
+            </div>
+            <div class="ctrl-row">
+              <label>Group By 4 <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+              <select class="ctrl-select" id="pivot-row4"><option value="">(none)</option></select>
+            </div>
+            <div class="ctrl-row full-width">
+              <label>Dwell Time Bucketing</label>
+              <div style="display:flex;align-items:center;gap:10px">
+                <label class="check-item">
+                  <input type="checkbox" id="dwell-bucket-cb"> Enable bucketing
+                </label>
+                <span style="font-size:12px;color:var(--text-muted)">Bucket size (min):</span>
+                <input class="num-input" type="number" id="dwell-bucket-size" value="15" min="1" max="60" style="width:60px" />
+                <span style="font-size:11px;color:var(--text-muted)" id="dwell-bucket-hint"></span>
+              </div>
+            </div>
+            <div class="ctrl-row full-width">
+              <label>Metrics</label>
+              <div class="metrics-row">
+                <label class="metric-check"><input type="checkbox" id="m-pax" checked> <span data-tip="SUM of passengers (per period) or per day, depending on the toggle. ×2.5 when Factor Adjustment is on.">Passengers</span></label>
+                <label class="metric-check"><input type="checkbox" id="m-fare" checked> <span data-tip="SUM of Revenue in USD (per period) or per day, depending on the toggle. ×2.5 when Factor Adjustment is on.">Revenue</span></label>
+                <label class="metric-check"><input type="checkbox" id="m-yield"> <span data-tip="Total Revenue ÷ Total Passengers — average fare per passenger. Always a per-pax ratio; unaffected by Per Day toggle or Factor Adjustment.">Avg OD Fare</span></label>
+                <label class="metric-check"><input type="checkbox" id="m-pct"> <span data-tip="Show Passengers and Revenue as % of the filtered grand total.">Show as %</span></label>
+                <span style="margin-left:12px;border-left:1px solid var(--border);padding-left:12px;display:flex;align-items:center;gap:6px">
+                  <span style="font-size:12px;color:var(--text-muted)" id="period-label-left">Per Period</span>
+                  <label class="toggle" style="width:38px;height:20px">
+                    <input type="checkbox" id="per-day-toggle" />
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span style="font-size:12px;color:var(--text-muted)" id="period-label-right">Per Day</span>
+                </span>
+              </div>
+            </div>
+            <div class="ctrl-row full-width">
+              <div class="action-row">
+                <button class="btn-primary" id="run-pivot">▶ Run Query</button>
+                <button class="btn-danger" id="stop-pivot" disabled>■ Stop</button>
+                <button class="btn-secondary" id="export-csv">Export CSV</button>
+                <button class="btn-secondary" id="export-xlsx">Export XLSX</button>
+                <button class="btn-danger" id="clear-filters">Clear Filters</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="pivot-status"></div>
+          <div id="pivot-error" class="error-msg"></div>
+          <div id="pivot-results"></div>
+        </div>
+
+        <!-- ── Chart panel ── -->
+        <div class="tab-panel" id="panel-chart">
+          <div class="chart-controls">
+            <div class="ctrl-row">
+              <label>Chart Type</label>
+              <select class="ctrl-select" id="chart-type">
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="pie">Pie</option>
+                <option value="scatter">Scatter</option>
+              </select>
+            </div>
+            <div class="ctrl-row">
+              <label>X Axis / Category</label>
+              <select class="ctrl-select" id="chart-x"></select>
+            </div>
+            <div class="ctrl-row">
+              <label>Y Axis / Value</label>
+              <select class="ctrl-select" id="chart-y">
+                <option value="pax">Passengers</option>
+                <option value="fare">Revenue</option>
+                <option value="yield">Avg OD Fare</option>
+                <option value="dwell_time">Connection Time (avg)</option>
+                <option value="circuity_abs">Excess Miles (avg)</option>
+                <option value="circuity_ratio">Circuity Ratio (avg)</option>
+              </select>
+            </div>
+            <div class="ctrl-row" id="chart-per-day-row">
+              <label>Per Period / Per Day</label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:var(--text-muted)">Per Period</span>
+                <label class="toggle" style="width:38px;height:20px">
+                  <input type="checkbox" id="chart-per-day-toggle" />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span style="font-size:12px;color:var(--text-muted)">Per Day</span>
+              </div>
+            </div>
+            <div class="ctrl-row" id="chart-bucket-row">
+              <label>Dwell Time Bucketing</label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <label class="check-item">
+                  <input type="checkbox" id="chart-bucket-cb"> Enable
+                </label>
+                <span style="font-size:12px;color:var(--text-muted)">Size (min):</span>
+                <input class="num-input" type="number" id="chart-bucket-size" value="15" min="1" max="60" style="width:55px" />
+              </div>
+            </div>
+            <div class="ctrl-row">
+              <label>X Axis Sort</label>
+              <select class="ctrl-select" id="chart-sort">
+                <option value="y_desc">By value ↓ (default)</option>
+                <option value="y_asc">By value ↑</option>
+                <option value="x_asc">By X label A → Z / low → high</option>
+                <option value="x_desc">By X label Z → A / high → low</option>
+              </select>
+            </div>
+            <div class="ctrl-row">
+              <label>Limit rows</label>
+              <select class="ctrl-select" id="chart-limit">
+                <option value="20">Top 20</option>
+                <option value="50">Top 50</option>
+                <option value="100">Top 100</option>
+                <option value="0">All</option>
+              </select>
+            </div>
+            <div class="ctrl-row">
+              <label>Color Palette</label>
+              <select class="ctrl-select" id="palette-select"></select>
+            </div>
+            <button class="btn-primary" id="run-chart" style="align-self:flex-end">▶ Draw Chart</button>
+            <button class="btn-danger" id="stop-chart" disabled style="align-self:flex-end">■ Stop</button>
+          </div>
+          <div id="chart-error" class="error-msg"></div>
+          <div id="chart-container"></div>
+        </div>
+
+        <!-- ── SQL panel ── -->
+        <div class="tab-panel" id="panel-sql">
+          <div class="sql-controls">
+            <div class="filter-label">Freeform SQL — table name is <code>data</code></div>
+            <textarea id="sql-editor">SELECT connect_apt, mkt_carrier, SUM(num_pax) AS passengers, SUM(allocated_amt) AS total_fare
+FROM data
+WHERE sch_fl_mo IN (7,8,9,10,11,12)
+GROUP BY connect_apt, mkt_carrier
+ORDER BY passengers DESC
+LIMIT 50</textarea>
+            <div class="action-row">
+              <button class="btn-primary" id="run-sql">▶ Run SQL</button>
+              <button class="btn-danger" id="stop-sql" disabled>■ Stop</button>
+              <button class="btn-secondary" id="sql-export-csv">Export CSV</button>
+              <button class="btn-secondary" id="sql-export-xlsx">Export XLSX</button>
+            </div>
+            <div id="sql-status"></div>
+            <div id="sql-error" class="error-msg"></div>
+          </div>
+          <div id="sql-results"></div>
+        </div>
+
+      </div><!-- /tab-content -->
+    </div><!-- /main -->
+  </div><!-- /body -->
+</div><!-- /app -->
+
+<script type="module">
+// ── CDN imports ───────────────────────────────────────────────────────────────
+import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const PARQUET_URL = 'https://pub-1833d458128d49baaf210e9830b85ef1.r2.dev/connecting_itineraries.parquet';
+
+const FIELD_META = {
+  origin:               { label: 'Origin Airport',              tip: 'IATA airport code for the trip origin' },
+  dest:                 { label: 'Destination Airport',         tip: 'IATA airport code for the destination' },
+  connect_apt:          { label: 'Connecting Hub',              tip: 'IATA code for the connecting (layover) airport' },
+  connect_region:       { label: 'Hub Region',                  tip: 'Geographic grouping: Midwest, Mountain West, Southeast, Texas' },
+  od_pair:              { label: 'Route (Directional)',          tip: 'Origin-destination pair in travel direction, e.g. BOS-MIA' },
+  od_pair_undirected:   { label: 'Route (Bidirectional)',        tip: 'O&D sorted alphabetically — combines both directions for market-level analysis' },
+  mkt_carrier:          { label: 'Marketing Carrier',           tip: 'Airline that sold the ticket (IATA code)' },
+  op_carrier_1:         { label: 'Operating Carrier — Leg 1',   tip: 'Airline that operated the origin-to-hub flight' },
+  op_carrier_2:         { label: 'Operating Carrier — Leg 2',   tip: 'Airline that operated the hub-to-destination flight' },
+  sch_fl_yr:            { label: 'Flight Year',                 tip: 'Scheduled departure year' },
+  sch_fl_mo:            { label: 'Flight Month',                tip: 'Scheduled departure month (1–12)' },
+  revenue_cat:          { label: 'Revenue Category',            tip: 'CAT1 = fare reported (> $0); CAT2 = zero or unreported fare' },
+  dwell_time:           { label: 'Connection Time (min)',        tip: 'Minutes between arriving at hub and departing on the outbound leg' },
+  long_connect:         { label: 'Long Connection',             tip: '1 = connection ≥ 4 hours; 0 = connection < 4 hours' },
+  routed_miles:         { label: 'Total Routed Miles',          tip: 'Total distance flown for this O&D market' },
+  gc_miles:             { label: 'Nonstop Miles',               tip: 'Straight-line (nonstop) distance origin to destination' },
+  circuity_abs:         { label: 'Excess Miles Traveled',       tip: 'Routed miles minus nonstop miles — how far out of the way this routing goes' },
+  circuity_ratio:       { label: 'Circuity Ratio',              tip: 'Routed miles ÷ nonstop miles (1.0 = perfectly direct; higher = more circuitous)' },
+  od_min_circuity_abs:  { label: 'Min. Excess Miles (Route)',   tip: 'Lowest excess miles for this O&D across all hub routings in the dataset' },
+  od_min_circuity_ratio:{ label: 'Min. Circuity Ratio (Route)', tip: 'Lowest circuity ratio for this O&D across all hub routings' },
+  freq_flag:            { label: 'Nonstop Frequency',           tip: 'Nonstop competition: LOW < 13 dep/month, MED = 13–90' },
+};
+
+// Columns available for grouping in pivot table
+const GROUP_DIMS = [
+  'connect_apt','connect_region','mkt_carrier','op_carrier_1','op_carrier_2',
+  'origin','dest','od_pair','od_pair_undirected','sch_fl_mo','sch_fl_yr',
+  'revenue_cat','long_connect','freq_flag','dwell_time',
+];
+
+const PALETTES = {
+  'Default':            ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#3ba272'],
+  'Colorblind-Safe':    ['#E69F00','#56B4E9','#009E73','#F0E442','#0072B2','#D55E00'],
+  'Monochrome':         ['#2d2d2d','#555555','#888888','#aaaaaa','#cccccc','#eeeeee'],
+  'High Contrast':      ['#FF0000','#0000FF','#00AA00','#FF6600','#9900CC','#006666'],
+  'Warm':               ['#FF6B6B','#FF8E53','#FFD93D','#C0CA33','#66BB6A','#FF7043'],
+  'Cool':               ['#1565C0','#0288D1','#00838F','#2E7D32','#4527A0','#6A1B9A'],
+};
+
+const MONTH_DAYS_2025 = { 7:31, 8:31, 9:30, 10:31, 11:30, 12:31 };
+const MONTH_NAMES     = { 7:'Jul', 8:'Aug', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec' };
+const HUBS = ['ATL','BNA','BWI','CLT','DAL','DCA','DEN','DFW','HOU','IAD','IAH','LAS','MDW','MSP','ORD','PHX','SLC','STL','DTW'];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let db           = null;
+let conn         = null;
+let queryAborted = false;
+let airportsLookup = [];      // [{iata_code, municipality, name}]
+let dataAirports = new Set(); // airports that appear in the dataset
+let dataCarriers = [];
+
+let selectedOrigins  = [];
+let selectedDests    = [];
+let selectedHubs     = [];
+let selectedCarriers = [];
+
+let pivotData      = null;  // raw DuckDB result rows
+let pivotTableRows = null;  // computed display rows (for client-side re-sort)
+let pivotHeaders   = null;
+let pivotTotalRow  = null;
+let pivotSortState = { key: null, dir: 'desc' };
+
+let sqlData       = null;
+let echartsInst   = null;
+let lastChartOption = null;   // persists chart through theme/palette changes
+
+let actualsMultiplier = 1.0;
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = {
+  int:  n => n == null ? '—' : Math.round(n).toLocaleString(),
+  dec:  n => n == null ? '—' : Number(n).toLocaleFixed ? n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : n.toFixed(2),
+  pct:  n => n == null ? '—' : n.toFixed(1) + '%',
+  usd:  n => n == null ? '—' : '$' + Math.round(n).toLocaleString(),
+};
+
+function setQuerying(on) {
+  $('query-bar').classList.toggle('running', on);
+  ['stop-pivot', 'stop-chart', 'stop-sql'].forEach(id => {
+    const btn = $(id);
+    if (btn) btn.disabled = !on;
+  });
+}
+
+async function cancelQuery() {
+  queryAborted = true;
+  setQuerying(false);
+  ['pivot-error','chart-error','sql-error'].forEach(id => { $(id).textContent = ''; });
+  ['pivot-status','sql-status'].forEach(id => { $(id).textContent = 'Query stopped.'; });
+  try {
+    if (conn) await conn.cancelSent();
+  } catch(e) { /* ignore */ }
+  queryAborted = false;
+}
+
+function getCheckedValues(cls) {
+  return [...document.querySelectorAll(`.${cls}:checked`)].map(el => el.value);
+}
+
+function getSelectedMonths() {
+  return getCheckedValues('month-cb').map(Number);
+}
+
+function totalCalendarDays(months) {
+  return months.reduce((sum, m) => sum + (MONTH_DAYS_2025[m] || 0), 0);
+}
+
+function currentPalette() {
+  return PALETTES[$('palette-select').value] || PALETTES['Default'];
+}
+
+// ── Init overlay ──────────────────────────────────────────────────────────────
+function setInitMsg(msg) { $('init-msg').textContent = msg; }
+function hideOverlay()   { $('init-overlay').classList.add('hidden'); }
+
+// ── DuckDB init ───────────────────────────────────────────────────────────────
+async function initDuckDB() {
+  setInitMsg('Loading DuckDB engine…');
+  const BUNDLES = duckdb.getJsDelivrBundles();
+  const bundle  = await duckdb.selectBundle(BUNDLES);
+
+  const workerUrl = URL.createObjectURL(
+    new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+  );
+  const worker = new Worker(workerUrl);
+  const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
+  db = new duckdb.AsyncDuckDB(logger, worker);
+  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  conn = await db.connect();
+
+  setInitMsg('Registering Parquet file…');
+  await conn.query(`
+    CREATE VIEW data AS
+    SELECT * FROM parquet_scan('${PARQUET_URL}')
+  `);
+
+  setInitMsg('Loading airport & carrier lists…');
+  await loadFilterLists();
+
+  setInitMsg('Ready.');
+  hideOverlay();
+}
+
+// ── Load filter lists ─────────────────────────────────────────────────────────
+async function loadFilterLists() {
+  // Both fetches in parallel — pure JSON, no Parquet scan needed
+  const [airportsRes, valuesRes] = await Promise.all([
+    fetch('./airports.json'),
+    fetch('./data_values.json'),
+  ]);
+
+  airportsLookup = await airportsRes.json();
+
+  const values = await valuesRes.json();
+  values.airports.forEach(code => dataAirports.add(code));
+  dataCarriers = values.carriers;
+}
+
+// ── WHERE clause builder ──────────────────────────────────────────────────────
+function buildWhere() {
+  const conds = [];
+  const months = getSelectedMonths();
+  if (months.length > 0 && months.length < 6)
+    conds.push(`sch_fl_mo IN (${months.join(',')})`);
+
+  if (selectedOrigins.length)
+    conds.push(`origin IN (${selectedOrigins.map(q).join(',')})`);
+  if (selectedDests.length)
+    conds.push(`dest IN (${selectedDests.map(q).join(',')})`);
+  if (selectedHubs.length)
+    conds.push(`connect_apt IN (${selectedHubs.map(q).join(',')})`);
+  if (selectedCarriers.length)
+    conds.push(`mkt_carrier IN (${selectedCarriers.map(q).join(',')})`);
+
+  const regions = getCheckedValues('region-cb');
+  if (regions.length < 4)
+    conds.push(`connect_region IN (${regions.map(q).join(',')})`);
+
+  const revCats = getCheckedValues('revcat-cb');
+  if (revCats.length === 1)
+    conds.push(`revenue_cat = ${q(revCats[0])}`);
+
+  const freqs = getCheckedValues('freq-cb');
+  if (freqs.length < 2)
+    conds.push(`freq_flag IN (${freqs.map(q).join(',')})`);
+
+  const minDwell = parseFloat($('min-dwell').value);
+  if (!isNaN(minDwell) && minDwell > 0)
+    conds.push(`dwell_time >= ${minDwell}`);
+
+  const maxDwell = parseFloat($('max-dwell').value);
+  if (!isNaN(maxDwell) && maxDwell > 0)
+    conds.push(`dwell_time <= ${maxDwell}`);
+
+  const maxCircAbs = parseFloat($('max-circ-abs').value);
+  if (!isNaN(maxCircAbs)) conds.push(`circuity_abs <= ${maxCircAbs}`);
+
+  const maxCircRatio = parseFloat($('max-circ-ratio').value);
+  if (!isNaN(maxCircRatio)) conds.push(`circuity_ratio <= ${maxCircRatio}`);
+
+  const maxRelAbs = parseFloat($('max-rel-gap-abs').value);
+  if (!isNaN(maxRelAbs)) conds.push(`(circuity_abs - od_min_circuity_abs) <= ${maxRelAbs}`);
+
+  const maxRelRatio = parseFloat($('max-rel-gap-ratio').value);
+  if (!isNaN(maxRelRatio)) conds.push(`(circuity_ratio - od_min_circuity_ratio) <= ${maxRelRatio}`);
+
+  return conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+}
+
+function q(s) { return `'${String(s).replace(/'/g, "''")}'`; }
+
+// ── Dwell bucket expression ───────────────────────────────────────────────────
+function dwellBucketExpr(size) {
+  return `(FLOOR(dwell_time / ${size}) * ${size}) || '–' || (FLOOR(dwell_time / ${size}) * ${size} + ${size - 1})`;
+}
+
+// ── Pivot cell renderer (pure) ────────────────────────────────────────────────
+function renderPivotCell(h, val) {
+  // dim keys are dynamically named dim1..dim4
+  if (h.key.startsWith('dim'))   return escHtml(val ?? '—');
+  if (h.key === 'passengers')    return fmt.int(val);
+  if (h.key === 'pax_pct')       return fmt.pct(val);
+  if (h.key === 'total_fare')    return val != null ? '$' + Number(val).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+  if (h.key === 'fare_pct')      return fmt.pct(val);
+  if (h.key === 'yield_per_pax') return val ? '$' + Number(val).toFixed(2) : '—';
+  return escHtml(val ?? '—');
+}
+
+// Numeric keys for sort comparison
+const NUMERIC_KEYS = new Set(['passengers','pax_pct','total_fare','fare_pct','yield_per_pax','daily_avg']);
+
+// ── Render pivot table from current pivotTableRows + pivotSortState ───────────
+function renderPivotTable() {
+  if (!pivotTableRows || !pivotHeaders) return;
+
+  const { key: sKey, dir: sDir } = pivotSortState;
+
+  // Sort a copy; keep total row pinned at bottom
+  const sorted = [...pivotTableRows];
+  if (sKey) {
+    sorted.sort((a, b) => {
+      const av = a[sKey], bv = b[sKey];
+      let cmp;
+      if (NUMERIC_KEYS.has(sKey)) {
+        cmp = (av ?? -Infinity) - (bv ?? -Infinity);
+      } else {
+        cmp = String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return sDir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  const arrow = (key) => {
+    if (pivotSortState.key !== key) return `<button class="sort-btn" data-sort="${key}">↕</button>`;
+    return `<button class="sort-btn active" data-sort="${key}">${pivotSortState.dir === 'asc' ? '▲' : '▼'}</button>`;
+  };
+
+  let html = `<table class="data-table"><thead><tr>`;
+  pivotHeaders.forEach(h => {
+    html += `<th>${escHtml(h.label)}${arrow(h.key)}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  sorted.forEach(r => {
+    html += `<tr>`;
+    pivotHeaders.forEach(h => { html += `<td>${renderPivotCell(h, r[h.key])}</td>`; });
+    html += `</tr>`;
+  });
+
+  // Total row pinned at bottom
+  if (pivotTotalRow) {
+    html += `<tr class="total-row">`;
+    pivotHeaders.forEach(h => { html += `<td>${renderPivotCell(h, pivotTotalRow[h.key])}</td>`; });
+    html += `</tr>`;
+  }
+
+  html += `</tbody></table>`;
+  $('pivot-results').innerHTML = html;
+
+  // Attach sort click handlers
+  $('pivot-results').querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.sort;
+      if (pivotSortState.key === k) {
+        pivotSortState.dir = pivotSortState.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        pivotSortState.key = k;
+        pivotSortState.dir = NUMERIC_KEYS.has(k) ? 'desc' : 'asc';
+      }
+      renderPivotTable();
+    });
+  });
+}
+
+// ── Pivot query ───────────────────────────────────────────────────────────────
+async function runPivot() {
+  if (!conn) return;
+  $('pivot-error').textContent = '';
+  $('pivot-status').textContent = 'Running…';
+  $('pivot-results').innerHTML  = '';
+  pivotSortState = { key: null, dir: 'desc' };
+  setQuerying(true);
+
+  const dimRaws = [
+    $('pivot-row1').value,
+    $('pivot-row2').value,
+    $('pivot-row3').value,
+    $('pivot-row4').value,
+  ].filter(Boolean);
+
+  const bucketOn   = $('dwell-bucket-cb').checked;
+  const bucketSize = parseInt($('dwell-bucket-size').value) || 15;
+
+  const showPax   = $('m-pax').checked;
+  const showFare  = $('m-fare').checked;
+  const showYield = $('m-yield').checked;
+  const showPct   = $('m-pct').checked;
+  const perDay    = $('per-day-toggle').checked;
+
+  function dimExpr(raw, alias) {
+    if (bucketOn && raw === 'dwell_time')
+      return { expr: dwellBucketExpr(bucketSize), alias };
+    return { expr: raw, alias };
+  }
+
+  const dims = dimRaws.map((raw, i) => dimExpr(raw, `dim${i + 1}`));
+
+  const selectDims = dims.map(d => `${d.expr} AS ${d.alias}`);
+  const groupDims  = dims.map(d => d.expr);
+
+  const mult  = actualsMultiplier;
+  const where = buildWhere();
+
+  const sql = `
+    SELECT
+      ${selectDims.join(', ')},
+      SUM(num_pax) * ${mult}                       AS passengers,
+      SUM(allocated_amt) * ${mult}                 AS total_fare,
+      SUM(allocated_amt) / NULLIF(SUM(num_pax), 0) AS yield_per_pax,
+      COUNT(*)                                     AS record_count
+    FROM data
+    ${where}
+    GROUP BY ${groupDims.join(', ')}
+    ORDER BY passengers DESC
+  `;
+
+  try {
+    const t0 = Date.now();
+    const res = await conn.query(sql);
+    pivotData = res.toArray();
+    const ms  = Date.now() - t0;
+
+    const grandPax  = pivotData.reduce((s, r) => s + (r.passengers  || 0), 0);
+    const grandFare = pivotData.reduce((s, r) => s + (r.total_fare  || 0), 0);
+    const months    = getSelectedMonths();
+    const totalDays = totalCalendarDays(months);
+
+    // Build headers — one column per active dim, then metrics
+    pivotHeaders = [];
+    dims.forEach((d, i) => {
+      const rawKey = dimRaws[i];
+      pivotHeaders.push({
+        key: d.alias,
+        label: fieldLabel(rawKey) + (bucketOn && rawKey === 'dwell_time' ? ' bucket' : ''),
+      });
+    });
+    const paxLabel  = perDay ? 'Passengers / Day' : 'Passengers';
+    const fareLabel = perDay ? 'Revenue / Day'    : 'Revenue';
+    const divisor   = perDay && totalDays ? totalDays : 1;
+
+    if (showPax)   pivotHeaders.push({ key:'passengers',    label: paxLabel });
+    if (showPct)   pivotHeaders.push({ key:'pax_pct',       label:'Pax %' });
+    if (showFare)  pivotHeaders.push({ key:'total_fare',    label: fareLabel });
+    if (showPct)   pivotHeaders.push({ key:'fare_pct',      label:'Fare %' });
+    if (showYield) pivotHeaders.push({ key:'yield_per_pax', label:'Avg OD Fare' });
+
+    pivotTableRows = pivotData.map(r => {
+      const pax  = (r.passengers || 0) / divisor;
+      const fare = (r.total_fare  || 0) / divisor;
+      const row = {
+        passengers:    pax,
+        pax_pct:       grandPax  ? ((r.passengers || 0) / grandPax  * 100) : 0,
+        total_fare:    fare,
+        fare_pct:      grandFare ? ((r.total_fare  || 0) / grandFare * 100) : 0,
+        yield_per_pax: r.yield_per_pax,
+      };
+      dims.forEach(d => { row[d.alias] = r[d.alias]; });
+      return row;
+    });
+
+    const totalRow = {
+      passengers:    grandPax  / divisor,
+      pax_pct:       100,
+      total_fare:    grandFare / divisor,
+      fare_pct:      100,
+      yield_per_pax: grandPax ? grandFare / grandPax : null,
+    };
+    dims.forEach((d, i) => { totalRow[d.alias] = i === 0 ? 'TOTAL' : ''; });
+    pivotTotalRow = totalRow;
+
+    renderPivotTable();
+    $('pivot-status').textContent = `${pivotData.length.toLocaleString()} rows · ${ms.toLocaleString()} ms`;
+
+  } catch(err) {
+    if (!queryAborted) {
+      $('pivot-error').textContent = 'Error: ' + err.message;
+      $('pivot-status').textContent = '';
+    }
+  } finally {
+    if (!queryAborted) setQuerying(false);
+  }
+}
+
+// ── Chart query & render ──────────────────────────────────────────────────────
+async function runChart() {
+  if (!conn) return;
+  $('chart-error').textContent = '';
+  setQuerying(true);
+
+  const chartType  = $('chart-type').value;
+  const xField     = $('chart-x').value;
+  const yField     = $('chart-y').value;
+  const sortMode   = $('chart-sort').value;
+  const limitVal   = parseInt($('chart-limit').value) || 0;
+  const bucketOn   = $('chart-bucket-cb').checked;
+  const bucketSize = parseInt($('chart-bucket-size').value) || 15;
+  const mult       = actualsMultiplier;
+  const where      = buildWhere();
+  const perDay     = $('chart-per-day-toggle').checked;
+  const months     = Array.from(document.querySelectorAll('.month-cb:checked')).map(cb => parseInt(cb.value));
+  const totalDays  = totalCalendarDays(months);
+  const dayDiv     = perDay && totalDays ? totalDays : 1;
+
+  let yExpr, yLabel;
+  switch(yField) {
+    case 'pax':            yExpr = `SUM(num_pax) * ${mult} / ${dayDiv}`;        yLabel = perDay ? 'Passengers / Day'  : 'Passengers'; break;
+    case 'fare':           yExpr = `SUM(allocated_amt) * ${mult} / ${dayDiv}`;  yLabel = perDay ? 'Revenue / Day'     : 'Revenue'; break;
+    case 'yield':          yExpr = `SUM(allocated_amt)/NULLIF(SUM(num_pax),0)`; yLabel = 'Avg OD Fare'; break;
+    case 'dwell_time':     yExpr = `AVG(dwell_time)`;                           yLabel = 'Avg Connection Time (min)'; break;
+    case 'circuity_abs':   yExpr = `AVG(circuity_abs)`;                         yLabel = 'Avg Excess Miles'; break;
+    case 'circuity_ratio': yExpr = `AVG(circuity_ratio)`;                       yLabel = 'Avg Circuity Ratio'; break;
+    default:               yExpr = `SUM(num_pax)`;                              yLabel = 'Passengers';
+  }
+
+  // Dwell bucketing on X axis
+  const useBucket = bucketOn && xField === 'dwell_time';
+  const xSelectExpr = useBucket
+    ? `${dwellBucketExpr(bucketSize)}`
+    : `CAST(${xField} AS VARCHAR)`;
+  const xGroupExpr = useBucket
+    ? `FLOOR(dwell_time / ${bucketSize}) * ${bucketSize}`
+    : xField;
+  // x_sort: numeric lower bound for buckets; numeric cast for other fields
+  const xSortExpr = useBucket
+    ? `FLOOR(dwell_time / ${bucketSize}) * ${bucketSize}`
+    : `TRY_CAST(${xField} AS DOUBLE)`;
+
+  const orderByMap = {
+    y_desc: 'y_val DESC',
+    y_asc:  'y_val ASC',
+    x_asc:  'x_sort ASC NULLS LAST, x_val ASC',
+    x_desc: 'x_sort DESC NULLS LAST, x_val DESC',
+  };
+  const orderBy = orderByMap[sortMode] || 'y_val DESC';
+
+  const xLabel      = fieldLabel(xField) + (useBucket ? ` (${bucketSize}-min buckets)` : '');
+  const limitClause = limitVal > 0 ? `LIMIT ${limitVal}` : '';
+
+  const sql = `
+    SELECT
+      ${xSelectExpr}   AS x_val,
+      ${xSortExpr}     AS x_sort,
+      ${yExpr}         AS y_val
+    FROM data
+    ${where}
+    GROUP BY ${xGroupExpr}
+    ORDER BY ${orderBy}
+    ${limitClause}
+  `;
+
+  try {
+    const res  = await conn.query(sql);
+    const rows = res.toArray();
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (!echartsInst) {
+      echartsInst = echarts.init($('chart-container'), isDark ? 'dark' : null, { renderer: 'svg' });
+    }
+    echartsInst.clear();
+
+    const palette = currentPalette();
+    const xVals   = rows.map(r => String(r.x_val ?? '—'));
+    const yVals   = rows.map(r => Number(r.y_val ?? 0));
+
+    let option;
+    if (chartType === 'pie') {
+      option = {
+        color: palette,
+        tooltip: { formatter: p => `${p.name}: ${p.value.toLocaleString()}` },
+        series: [{
+          type: 'pie', radius: '65%',
+          data: rows.map(r => ({ name: String(r.x_val ?? '—'), value: Number(r.y_val ?? 0) })),
+          label: { formatter: '{b}: {d}%' },
+        }],
+      };
+    } else if (chartType === 'scatter') {
+      const pts = rows.map(r => [Number(r.x_sort ?? r.x_val ?? 0), Number(r.y_val ?? 0)]);
+      // Linear regression for trendline
+      const n  = pts.length;
+      const sx = pts.reduce((s, p) => s + p[0], 0);
+      const sy = pts.reduce((s, p) => s + p[1], 0);
+      const sxx = pts.reduce((s, p) => s + p[0] * p[0], 0);
+      const sxy = pts.reduce((s, p) => s + p[0] * p[1], 0);
+      const denom = n * sxx - sx * sx;
+      let trendData = [], r2Text = '';
+      if (n >= 2 && denom !== 0) {
+        const slope = (n * sxy - sx * sy) / denom;
+        const intercept = (sy - slope * sx) / n;
+        const xMin = Math.min(...pts.map(p => p[0]));
+        const xMax = Math.max(...pts.map(p => p[0]));
+        trendData = [[xMin, slope * xMin + intercept], [xMax, slope * xMax + intercept]];
+        const yMean = sy / n;
+        const ssTot = pts.reduce((s, p) => s + (p[1] - yMean) ** 2, 0);
+        const ssRes = pts.reduce((s, p) => s + (p[1] - (slope * p[0] + intercept)) ** 2, 0);
+        const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+        const sign = intercept >= 0 ? '+' : '−';
+        r2Text = `y = ${slope.toFixed(3)}x ${sign} ${Math.abs(intercept).toFixed(1)}    R² = ${r2.toFixed(4)}`;
+      }
+      option = {
+        color: palette,
+        xAxis: { type: 'value', name: xLabel },
+        yAxis: { type: 'value', name: yLabel },
+        tooltip: { trigger: 'item', formatter: p => p.seriesIndex === 0 ? `${String(rows[p.dataIndex]?.x_val ?? '')}<br/>(${p.value[0].toLocaleString()}, ${p.value[1].toLocaleString()})` : '' },
+        graphic: r2Text ? [{ type: 'text', right: 16, top: 8,
+          style: { text: r2Text, font: '12px monospace', fill: 'var(--text-muted)' } }] : [],
+        series: [
+          { name: 'Data', type: 'scatter', data: pts },
+          ...(trendData.length ? [{ name: 'Trend', type: 'line', data: trendData,
+            symbol: 'none', lineStyle: { type: 'dashed', color: palette[1] || '#aaa', width: 2 },
+            tooltip: { show: false } }] : []),
+        ],
+      };
+    } else {
+      option = {
+        color: palette,
+        grid: { left: 80, right: 20, top: 30, bottom: 80 },
+        xAxis: { type: 'category', data: xVals, axisLabel: { rotate: 30 }, name: xLabel },
+        yAxis: { type: 'value', name: yLabel },
+        tooltip: { trigger: 'axis' },
+        series: [{ type: chartType, data: yVals }],
+      };
+    }
+
+    lastChartOption = option;
+    echartsInst.setOption(option);
+    window.addEventListener('resize', () => echartsInst && echartsInst.resize());
+
+  } catch(err) {
+    if (!queryAborted) $('chart-error').textContent = 'Error: ' + err.message;
+  } finally {
+    if (!queryAborted) setQuerying(false);
+  }
+}
+
+// ── SQL runner ────────────────────────────────────────────────────────────────
+async function runSQL() {
+  if (!conn) return;
+  $('sql-error').textContent = '';
+  $('sql-status').textContent = 'Running…';
+  $('sql-results').innerHTML = '';
+  setQuerying(true);
+
+  const sql = $('sql-editor').value.trim();
+  if (!sql) return;
+
+  try {
+    const t0 = Date.now();
+    const res = await conn.query(sql);
+    sqlData = res.toArray();
+    const ms = Date.now() - t0;
+
+    if (!sqlData.length) {
+      $('sql-results').innerHTML = '<div style="color:var(--text-muted);padding:8px">No rows returned.</div>';
+      $('sql-status').textContent = `0 rows · ${ms} ms`;
+      return;
+    }
+
+    const cols = Object.keys(sqlData[0]);
+    let html = `<table class="data-table"><thead><tr>`;
+    cols.forEach(c => { html += `<th>${escHtml(c)}</th>`; });
+    html += `</tr></thead><tbody>`;
+    sqlData.forEach(r => {
+      html += '<tr>';
+      cols.forEach(c => { html += `<td>${escHtml(r[c] ?? '')}</td>`; });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+
+    $('sql-results').innerHTML = html;
+    $('sql-status').textContent = `${sqlData.length.toLocaleString()} rows · ${ms.toLocaleString()} ms`;
+
+  } catch(err) {
+    if (!queryAborted) {
+      $('sql-error').textContent = 'Error: ' + err.message;
+      $('sql-status').textContent = '';
+    }
+  } finally {
+    if (!queryAborted) setQuerying(false);
+  }
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function tableToCSV(rows) {
+  if (!rows || !rows.length) return '';
+  const cols = Object.keys(rows[0]);
+  const esc = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.map(esc).join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+}
+
+function downloadCSV(rows, fname) {
+  const csv = tableToCSV(rows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = fname; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadXLSX(rows, fname) {
+  if (!rows || !rows.length) return;
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, fname);
+}
+
+function toExportKey(label) {
+  return label.replace(/\s+/g, '_');
+}
+
+function remapHeaders(rows, keyToLabel) {
+  if (!rows || !rows.length) return rows;
+  const cols = Object.keys(rows[0]);
+  return rows.map(r => {
+    const out = {};
+    cols.forEach(c => { out[keyToLabel(c)] = r[c]; });
+    return out;
+  });
+}
+
+function pivotRowsForExport() {
+  if (!pivotTableRows || !pivotHeaders) return pivotData;
+  return pivotTableRows.map(r => {
+    const out = {};
+    pivotHeaders.forEach(h => { out[toExportKey(h.label)] = r[h.key]; });
+    return out;
+  });
+}
+
+function sqlRowsForExport() {
+  return remapHeaders(sqlData, c => toExportKey(fieldLabel(c)));
+}
+
+// ── Typeahead ─────────────────────────────────────────────────────────────────
+function makeTypeahead({ inputId, dropdownId, tagsId, getItems, onSelect, selected, placeholder }) {
+  const input    = $(inputId);
+  const dropdown = $(dropdownId);
+  const tagsEl   = $(tagsId);
+
+  function renderTags() {
+    tagsEl.innerHTML = '';
+    selected.forEach(val => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.innerHTML = `${escHtml(val)} <button aria-label="remove">&times;</button>`;
+      tag.querySelector('button').addEventListener('click', () => {
+        const idx = selected.indexOf(val);
+        if (idx >= 0) selected.splice(idx, 1);
+        renderTags();
+      });
+      tagsEl.appendChild(tag);
+    });
+  }
+
+  function positionDropdown() {
+    const rect = input.getBoundingClientRect();
+    dropdown.style.left  = rect.left + 'px';
+    dropdown.style.top   = (rect.bottom + 2) + 'px';
+    dropdown.style.width = rect.width + 'px';
+  }
+
+  function renderDropdown(query) {
+    const items = getItems(query).filter(item => !selected.includes(item.value)).slice(0, 20);
+    if (!items.length) { dropdown.classList.remove('open'); return; }
+    dropdown.innerHTML = items.map(item =>
+      `<div class="typeahead-item" data-val="${escAttr(item.value)}">${escHtml(item.label)}</div>`
+    ).join('');
+    positionDropdown();
+    dropdown.classList.add('open');
+    dropdown.querySelectorAll('.typeahead-item').forEach(el => {
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const val = el.dataset.val;
+        if (!selected.includes(val)) { selected.push(val); onSelect(val); }
+        input.value = '';
+        dropdown.classList.remove('open');
+        renderTags();
+      });
+    });
+  }
+
+  input.addEventListener('input', () => { renderDropdown(input.value.trim()); });
+  input.addEventListener('blur', () => { setTimeout(() => dropdown.classList.remove('open'), 150); });
+  input.addEventListener('focus', () => { if (input.value) renderDropdown(input.value.trim()); });
+  window.addEventListener('scroll', () => { if (dropdown.classList.contains('open')) positionDropdown(); }, true);
+  renderTags();
+}
+
+function airportItems(query) {
+  const filtered = airportsLookup.filter(a => dataAirports.has(a.iata_code));
+  if (query.length <= 3) {
+    const q = query.toUpperCase();
+    return filtered.filter(a => a.iata_code.startsWith(q))
+      .map(a => ({ value: a.iata_code, label: `${a.iata_code} — ${a.municipality}` }));
+  } else {
+    const q = query.toLowerCase();
+    return filtered.filter(a => a.municipality.toLowerCase().includes(q))
+      .map(a => ({ value: a.iata_code, label: `${a.iata_code} — ${a.municipality}` }));
+  }
+}
+
+function hubItems(query) {
+  const hubSet  = new Set(HUBS);
+  const filtered = airportsLookup.filter(a => hubSet.has(a.iata_code));
+  if (query.length <= 3) {
+    const q = query.toUpperCase();
+    return filtered.filter(a => a.iata_code.startsWith(q))
+      .map(a => ({ value: a.iata_code, label: `${a.iata_code} — ${a.municipality}` }));
+  } else {
+    const q = query.toLowerCase();
+    return filtered.filter(a => a.municipality.toLowerCase().includes(q))
+      .map(a => ({ value: a.iata_code, label: `${a.iata_code} — ${a.municipality}` }));
+  }
+}
+
+function carrierItems(query) {
+  const q = query.toUpperCase();
+  return dataCarriers.filter(c => c.startsWith(q))
+    .map(c => ({ value: c, label: c }));
+}
+
+// ── Field label helper ────────────────────────────────────────────────────────
+function fieldLabel(key) {
+  return FIELD_META[key]?.label || key;
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return escHtml(s); }
+
+// ── Populate selects ──────────────────────────────────────────────────────────
+function populatePivotDims() {
+  const selects = ['pivot-row1','pivot-row2','pivot-row3','pivot-row4','chart-x'];
+  selects.forEach((id, i) => {
+    const sel = $(id);
+    if (i > 0 && i < 4) sel.add(new Option('(none)', ''));
+    GROUP_DIMS.forEach(d => sel.add(new Option(fieldLabel(d), d)));
+  });
+  $('pivot-row1').value = 'connect_apt';
+  $('chart-x').value    = 'connect_apt';
+}
+
+function populatePalettes() {
+  const sel = $('palette-select');
+  Object.keys(PALETTES).forEach(name => {
+    const dots = PALETTES[name].slice(0, 4)
+      .map(c => `<span class="palette-dot" style="background:${c}"></span>`).join('');
+    const opt = new Option(name, name);
+    sel.add(opt);
+  });
+
+  // Restore from localStorage
+  const saved = localStorage.getItem('palette');
+  if (saved && PALETTES[saved]) sel.value = saved;
+  sel.addEventListener('change', () => {
+    localStorage.setItem('palette', sel.value);
+    if (echartsInst && lastChartOption) {
+      lastChartOption.color = currentPalette();
+      echartsInst.setOption(lastChartOption);
+    }
+  });
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function applyTheme(dark) {
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+  if (echartsInst) {
+    echartsInst.dispose();
+    echartsInst = echarts.init($('chart-container'), dark ? 'dark' : null, { renderer: 'svg' });
+    if (lastChartOption) {
+      // Refresh palette in case it targets the series color
+      lastChartOption.color = currentPalette();
+      echartsInst.setOption(lastChartOption);
+    }
+  }
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function initTabs() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      $('panel-' + tab.dataset.tab).classList.add('active');
+      if (tab.dataset.tab === 'chart' && echartsInst) {
+        setTimeout(() => echartsInst.resize(), 50);
+      }
+    });
+  });
+}
+
+// ── Clear filters ─────────────────────────────────────────────────────────────
+function clearFilters() {
+  document.querySelectorAll('.month-cb, .region-cb, .revcat-cb, .freq-cb')
+    .forEach(cb => { cb.checked = true; });
+  selectedOrigins.length = 0;
+  selectedDests.length   = 0;
+  selectedHubs.length    = 0;
+  selectedCarriers.length = 0;
+  ['origin-tags','dest-tags','hub-tags','carrier-tags'].forEach(id => { $(id).innerHTML = ''; });
+  ['origin-input','dest-input','hub-input','carrier-input'].forEach(id => { $(id).value = ''; });
+  ['min-dwell','max-dwell','max-circ-abs','max-circ-ratio','max-rel-gap-abs','max-rel-gap-ratio']
+    .forEach(id => { $(id).value = ''; });
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+async function boot() {
+  initTabs();
+  populatePivotDims();
+  populatePalettes();
+
+  // Theme
+  const savedTheme = localStorage.getItem('theme');
+  const darkOn = savedTheme === 'dark';
+  $('theme-toggle').checked = darkOn;
+  applyTheme(darkOn);
+  $('theme-toggle').addEventListener('change', e => applyTheme(e.target.checked));
+
+  // Factor Adjustment toggle — update label and re-render any existing pivot instantly
+  $('actuals-toggle').addEventListener('change', e => {
+    const on = e.target.checked;
+    const prevMult = actualsMultiplier;
+    actualsMultiplier = on ? 2.5 : 1.0;
+    $('actuals-label').textContent = on ? 'Factor Adjustment' : 'Raw Data';
+    $('actuals-sub').textContent   = on ? '×2.5 estimated market' : '40% DOT sample';
+
+    // Scale existing pivot rows without re-querying
+    if (pivotTableRows && prevMult !== actualsMultiplier) {
+      const scale = actualsMultiplier / prevMult;
+      pivotTableRows = pivotTableRows.map(r => ({
+        ...r,
+        passengers: (r.passengers || 0) * scale,
+        total_fare: (r.total_fare  || 0) * scale,
+      }));
+      // Recompute % from scaled grand totals
+      const gPax  = pivotTableRows.reduce((s, r) => s + r.passengers, 0);
+      const gFare = pivotTableRows.reduce((s, r) => s + r.total_fare, 0);
+      pivotTableRows = pivotTableRows.map(r => ({
+        ...r,
+        pax_pct:  gPax  ? (r.passengers / gPax  * 100) : 0,
+        fare_pct: gFare ? (r.total_fare  / gFare * 100) : 0,
+      }));
+      if (pivotTotalRow) {
+        pivotTotalRow = {
+          ...pivotTotalRow,
+          passengers: gPax, total_fare: gFare,
+          pax_pct: 100, fare_pct: 100,
+          yield_per_pax: gPax ? gFare / gPax : null,
+        };
+      }
+      renderPivotTable();
+    }
+    if (lastChartOption) runChart();
+  });
+
+  // Per Day toggles — each refreshes its own view
+  $('per-day-toggle').addEventListener('change', () => {
+    if (pivotData) runPivot();
+  });
+  $('chart-per-day-toggle').addEventListener('change', () => {
+    if (lastChartOption) runChart();
+  });
+
+  // Pivot buttons
+  $('run-pivot').addEventListener('click', runPivot);
+  $('stop-pivot').addEventListener('click', cancelQuery);
+  $('stop-chart').addEventListener('click', cancelQuery);
+  $('stop-sql').addEventListener('click', cancelQuery);
+  $('export-csv').addEventListener('click', () => downloadCSV(pivotRowsForExport(), 'pivot_results.csv'));
+  $('export-xlsx').addEventListener('click', () => downloadXLSX(pivotRowsForExport(), 'pivot_results.xlsx'));
+  $('clear-filters').addEventListener('click', clearFilters);
+
+  // Chart
+  $('run-chart').addEventListener('click', runChart);
+
+  // SQL
+  $('run-sql').addEventListener('click', runSQL);
+  $('sql-export-csv').addEventListener('click', () => downloadCSV(sqlRowsForExport(), 'sql_results.csv'));
+  $('sql-export-xlsx').addEventListener('click', () => downloadXLSX(sqlRowsForExport(), 'sql_results.xlsx'));
+
+  // DuckDB init (async — overlay stays until done)
+  try {
+    await initDuckDB();
+  } catch(err) {
+    $('init-msg').textContent = 'Error initializing DuckDB: ' + err.message;
+    return;
+  }
+
+  // Typeaheads (after data loaded)
+  makeTypeahead({
+    inputId: 'origin-input', dropdownId: 'origin-dropdown', tagsId: 'origin-tags',
+    getItems: airportItems, onSelect: () => {}, selected: selectedOrigins,
+  });
+  makeTypeahead({
+    inputId: 'dest-input', dropdownId: 'dest-dropdown', tagsId: 'dest-tags',
+    getItems: airportItems, onSelect: () => {}, selected: selectedDests,
+  });
+  makeTypeahead({
+    inputId: 'hub-input', dropdownId: 'hub-dropdown', tagsId: 'hub-tags',
+    getItems: hubItems, onSelect: () => {}, selected: selectedHubs,
+  });
+  makeTypeahead({
+    inputId: 'carrier-input', dropdownId: 'carrier-dropdown', tagsId: 'carrier-tags',
+    getItems: carrierItems, onSelect: () => {}, selected: selectedCarriers,
+  });
+}
+
+boot();
+</script>
+</body>
+</html>
