@@ -1,0 +1,10 @@
+# Large data files — hosted on Cloudflare R2, not in the repo
+*.db
+*.parquet
+
+# Raw source data
+Raw_Parquet_CSV_Inputs/
+
+# Python cache
+__pycache__/
+*.pyc

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell.exe -Command '[System.Environment]::GetEnvironmentVariable\\('\\\\''PATH'\\\\''\\) -split '\\\\'';'\\\\'' | Where-Object { $_ -match '\\\\''python|conda|py'\\\\'' }')"
+    ]
+  }
+}
