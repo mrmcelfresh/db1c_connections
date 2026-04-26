@@ -1193,8 +1193,8 @@ async function runChart() {
       }
       option = {
         color: palette,
-        xAxis: { type: 'value', name: xLabel },
-        yAxis: { type: 'value', name: yLabel },
+        xAxis: { type: 'value', name: xLabel, scale: true },
+        yAxis: { type: 'value', name: yLabel, scale: true },
         tooltip: { trigger: 'item', formatter: p => p.seriesIndex === 0 ? `${String(rows[p.dataIndex]?.x_val ?? '')}<br/>(${p.value[0].toLocaleString()}, ${p.value[1].toLocaleString()})` : '' },
         graphic: r2Text ? [{ type: 'text', right: 16, top: 8,
           style: { text: r2Text, font: '12px monospace', fill: 'var(--text-muted)' } }] : [],
@@ -1210,7 +1210,7 @@ async function runChart() {
         color: palette,
         grid: { left: 80, right: 20, top: 30, bottom: 80 },
         xAxis: { type: 'category', data: xVals, axisLabel: { rotate: 30 }, name: xLabel },
-        yAxis: { type: 'value', name: yLabel },
+        yAxis: { type: 'value', name: yLabel, scale: true },
         tooltip: { trigger: 'axis' },
         series: [{ type: chartType, data: yVals }],
       };
